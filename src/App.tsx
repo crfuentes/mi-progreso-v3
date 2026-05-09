@@ -257,13 +257,14 @@ export default function App() {
     const existing=gymSessions[dateStr];
     if(existing){ setGymSession(existing); setGymDayType(existing.day); }
     else {
-      const tmpl=gymTemplate[gymDayType];
+      const tmpl=gymTemplate[gymDayType]||DEFAULT_GYM_TEMPLATE[gymDayType];
       setGymSession({ day:gymDayType, exercises:tmpl.exercises.map(ex=>({id:ex.id,name:ex.name,sets:[{weight:0,reps:0}],notes:""})) });
     }
     // Find last session of same type
     const prev=Object.entries(gymSessions).filter(([d,s])=>d<dateStr&&s.day===gymDayType).sort(([a],[b])=>b.localeCompare(a))[0];
     setLastGymSession(prev?prev[1]:null);
-  },[gymDate,gymDayType,gymSessions,gymTemplate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[gymDate,gymDayType,gymSessions]);
 
   // ── Notifications ──
   useEffect(()=>{
@@ -324,7 +325,19 @@ export default function App() {
   const updateSet=(exIdx:number,setIdx:number,field:keyof GymSet,val:number)=>{ if(!gymSession) return; const ex=gymSession.exercises.map((e,i)=>i!==exIdx?e:{...e,sets:e.sets.map((s,j)=>j!==setIdx?s:{...s,[field]:val})}); setGymSession({...gymSession,exercises:ex}); };
   const addSet=(exIdx:number)=>{ if(!gymSession) return; const last=gymSession.exercises[exIdx].sets.slice(-1)[0]||{weight:0,reps:0}; const ex=gymSession.exercises.map((e,i)=>i!==exIdx?e:{...e,sets:[...e.sets,{...last}]}); setGymSession({...gymSession,exercises:ex}); };
   const removeSet=(exIdx:number,setIdx:number)=>{ if(!gymSession||gymSession.exercises[exIdx].sets.length<=1) return; const ex=gymSession.exercises.map((e,i)=>i!==exIdx?e:{...e,sets:e.sets.filter((_,j)=>j!==setIdx)}); setGymSession({...gymSession,exercises:ex}); };
-  const addExercise=()=>{ if(!gymSession) return; const id=`${gymDayType.toLowerCase()}${Date.now()}`; const newEx={id,name:"Nuevo ejercicio",sets:[{weight:0,reps:0}],notes:""}; setGymSession({...gymSession,exercises:[...gymSession.exercises,newEx]}); const tmpl={...gymTemplate,[gymDayType]:{...gymTemplate[gymDayType],exercises:[...gymTemplate[gymDayType].exercises,{id,name:"Nuevo ejercicio"}]}}; saveGymTemplate(tmpl); };
+  const addExercise=()=>{
+    if(!gymSession) return;
+    const id=`${gymDayType.toLowerCase()}${Date.now()}`;
+    const newEx={id,name:"Nuevo ejercicio",sets:[{weight:0,reps:0}],notes:""};
+    const updatedSession={...gymSession,exercises:[...gymSession.exercises,newEx]};
+    // Autosave session first so useEffect doesn't reset it
+    const dateStr=fmtDate(gymDate);
+    const updatedSessions={...gymSessions,[dateStr]:updatedSession};
+    setGymSessions(updatedSessions); lsSet("gym:sessions",updatedSessions);
+    setGymSession(updatedSession);
+    const tmpl={...gymTemplate,[gymDayType]:{...gymTemplate[gymDayType],exercises:[...gymTemplate[gymDayType].exercises,{id,name:"Nuevo ejercicio"}]}};
+    saveGymTemplate(tmpl);
+  };
   const removeExercise=(exIdx:number)=>{ if(!gymSession||gymSession.exercises.length<=1) return; setGymSession({...gymSession,exercises:gymSession.exercises.filter((_,i)=>i!==exIdx)}); };
   const updateTemplateName=(day:string,label:string)=>{ const tmpl={...gymTemplate,[day]:{...gymTemplate[day],label}}; saveGymTemplate(tmpl); };
 
